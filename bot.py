@@ -1,5 +1,6 @@
 import telebot
 import os
+from telebot import types
 from openai import OpenAI
 
 TOKEN = os.environ.get("BOT_TOKEN")
@@ -7,6 +8,24 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
 bot = telebot.TeleBot(TOKEN)
 client = OpenAI(api_key=OPENAI_API_KEY)
+
+USER_MODES = {}
+
+MODES = {
+    "gentle": "☀️ Нежный режим: говори особенно мягко, спокойно, заботливо. Минимум сарказма, больше тепла.",
+    "mem": "🤡 Мемный режим: больше офисного юмора, абсурда, мемных формулировок, но без жесткости.",
+    "post": "💀 Постироничный режим: суховатый юмор, офисный апокалипсис, духовное увольнение, но с поддержкой.",
+    "adhd": "🧠 ADHD-chaos режим: очень короткие шаги, списки, меньше текста, помогай собрать хаос.",
+    "potato": "🥔 Картофельный режим: максимально бережно, без давления. Задача дня — просто не сгореть."
+}
+
+MODE_NAMES = {
+    "gentle": "☀️ Нежный",
+    "mem": "🤡 Мемный",
+    "post": "💀 Постироничный",
+    "adhd": "🧠 ADHD-chaos",
+    "potato": "🥔 Картофельный"
+}
 
 SYSTEM_PROMPT = """
 Ты — Солнечный Ген.
@@ -24,9 +43,6 @@ SYSTEM_PROMPT = """
 — справляться с перегрузом
 — переживать дедлайны
 — не паниковать
-
-Иногда используй:
-☀️ 🥔 ☕️
 
 Любимые слова и фразы:
 — дедлайновая лава
@@ -59,12 +75,8 @@ SYSTEM_PROMPT = """
 — если вопрос про Битрикс24, объясняй как новичку
 — если задача большая, разбивай её на микрошаги
 
-Иногда:
-— мягко шути
-— используй уютный абсурд
-— поддерживай человека как уставший офисный друг
-— не будь токсично-мотивирующим
-— не дави продуктивностью
+Иногда используй:
+☀️ 🥔 ☕️
 """
 
 def load_knowledge():
@@ -85,14 +97,32 @@ def load_knowledge():
     return knowledge_text
 
 
+def get_user_mode(chat_id):
+    return USER_MODES.get(chat_id, "gentle")
+
+
+def make_modes_keyboard():
+    keyboard = types.InlineKeyboardMarkup()
+
+    keyboard.add(types.InlineKeyboardButton("☀️ Нежный", callback_data="mode_gentle"))
+    keyboard.add(types.InlineKeyboardButton("🤡 Мемный", callback_data="mode_mem"))
+    keyboard.add(types.InlineKeyboardButton("💀 Постироничный", callback_data="mode_post"))
+    keyboard.add(types.InlineKeyboardButton("🧠 ADHD-chaos", callback_data="mode_adhd"))
+    keyboard.add(types.InlineKeyboardButton("🥔 Картофельный", callback_data="mode_potato"))
+
+    return keyboard
+
+
 KNOWLEDGE = load_knowledge()
 
 
 @bot.message_handler(commands=['start'])
 def start(message):
+    USER_MODES[message.chat.id] = "gentle"
     bot.send_message(
         message.chat.id,
-        "Бомжур, госпожижи ☀️\nЯ Солнечный Ген.\nТеперь я официально умная картошка 🥔"
+        "Бомжур, госпожижи ☀️\nЯ Солнечный Ген.\nВыбери режим поддержки или просто напиши, что происходит.",
+        reply_markup=make_modes_keyboard()
     )
 
 
@@ -100,8 +130,61 @@ def start(message):
 def help_command(message):
     bot.send_message(
         message.chat.id,
-        "Я умею:\n/checkin — мягкий чек-ин\n/potato — режим картошки\n/panic — если накрыло\n/task — разложить задачу\n/meme — офисный мем\n\nИ можешь просто написать мне обычным сообщением."
+        "Я умею:\n/checkin — мягкий чек-ин\n/potato — режим картошки\n/panic — если накрыло\n/task — разложить задачу\n/meme — офисный мем\n/modes — выбрать режим поддержки\n\nИ можешь просто написать мне обычным сообщением."
     )
+
+
+@bot.message_handler(commands=['modes'])
+def modes(message):
+    bot.send_message(
+        message.chat.id,
+        "Выбери режим Гены:",
+        reply_markup=make_modes_keyboard()
+    )
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("mode_"))
+def mode_callback(call):
+    mode_key = call.data.replace("mode_", "")
+    USER_MODES[call.message.chat.id] = mode_key
+
+    mode_name = MODE_NAMES.get(mode_key, "☀️ Нежный")
+
+    bot.answer_callback_query(call.id, f"{mode_name} режим включён")
+    bot.send_message(
+        call.message.chat.id,
+        f"{mode_name} режим включён.\nПиши, что случилось — Ген на связи ☀️"
+    )
+
+
+@bot.message_handler(commands=['gentle'])
+def gentle_mode(message):
+    USER_MODES[message.chat.id] = "gentle"
+    bot.send_message(message.chat.id, "☀️ Нежный режим включён. Сейчас без героизма, просто дышим и делаем микрошажочек.")
+
+
+@bot.message_handler(commands=['mem'])
+def mem_mode(message):
+    USER_MODES[message.chat.id] = "mem"
+    bot.send_message(message.chat.id, "🤡 Мемный режим включён. Офисный цирк принят, дедлайновая лава под контролем.")
+
+
+@bot.message_handler(commands=['post'])
+def post_mode(message):
+    USER_MODES[message.chat.id] = "post"
+    bot.send_message(message.chat.id, "💀 Постироничный режим включён. Духовное увольнение отложено до следующего созвона.")
+
+
+@bot.message_handler(commands=['adhd'])
+def adhd_mode(message):
+    USER_MODES[message.chat.id] = "adhd"
+    bot.send_message(message.chat.id, "🧠 ADHD-chaos режим включён. Будем резать хаос на маленькие кусочки.")
+
+
+@bot.message_handler(commands=['potatomode'])
+def potato_support_mode(message):
+    USER_MODES[message.chat.id] = "potato"
+    bot.send_message(message.chat.id, "🥔 Картофельный режим включён. Сегодня просто не сгораем. Уже достаточно.")
 
 
 @bot.message_handler(commands=['checkin'])
@@ -114,6 +197,7 @@ def checkin(message):
 
 @bot.message_handler(commands=['potato'])
 def potato(message):
+    USER_MODES[message.chat.id] = "potato"
     bot.send_message(
         message.chat.id,
         "Режим картошки активирован 🥔\nСегодня задача: не сгореть и сделать один маленький шажочек."
@@ -122,17 +206,19 @@ def potato(message):
 
 @bot.message_handler(commands=['panic'])
 def panic(message):
+    USER_MODES[message.chat.id] = "potato"
     bot.send_message(
         message.chat.id,
-        "Так. Дышим ☀️\nТы не обязана победить весь офисный апокалипсис.\nНазови одну микрозадачу. Одну."
+        "Так. Дышим ☀️\nКартофельный режим включён автоматически.\nТы не обязана победить весь офисный апокалипсис.\nНазови одну микрозадачу. Одну."
     )
 
 
 @bot.message_handler(commands=['task'])
 def task(message):
+    USER_MODES[message.chat.id] = "adhd"
     bot.send_message(
         message.chat.id,
-        "Кидай задачу одним сообщением, а я разложу её на маленькие шаги 🥔"
+        "Кидай задачу одним сообщением, а я разложу её на маленькие шаги 🥔\nADHD-chaos режим включён автоматически."
     )
 
 
@@ -147,14 +233,17 @@ def meme(message):
 @bot.message_handler(func=lambda message: True)
 def chat(message):
     try:
+        mode_key = get_user_mode(message.chat.id)
+        mode_prompt = MODES.get(mode_key, MODES["gentle"])
+
         response = client.chat.completions.create(
             model="gpt-4.1-mini",
-            max_tokens=220,
+            max_tokens=240,
             temperature=0.8,
             messages=[
                 {
                     "role": "system",
-                    "content": SYSTEM_PROMPT + "\n\nБаза знаний:\n" + KNOWLEDGE
+                    "content": SYSTEM_PROMPT + "\n\nТекущий режим поддержки:\n" + mode_prompt + "\n\nБаза знаний:\n" + KNOWLEDGE
                 },
                 {
                     "role": "user",
