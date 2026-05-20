@@ -109,20 +109,21 @@ def meme(message):
 @bot.message_handler(func=lambda message: True)
 def chat(message):
     try:
-        response = client.chat.completions.create(
-           model="gpt-4.1-mini",
-max_tokens=200,
-temperature=0.8,
-         messages=[
-    {
-        "role": "system",
-        "content": SYSTEM_PROMPT + "\n\nБаза знаний:\n" + KNOWLEDGE
-    },
-    {
-        "role": "user",
-        "content": message.text
-    }
-]
+response = client.chat.completions.create(
+    model="gpt-4.1-mini",
+    max_tokens=200,
+    temperature=0.8,
+    messages=[
+        {
+            "role": "system",
+            "content": SYSTEM_PROMPT + "\n\nБаза знаний:\n" + KNOWLEDGE
+        },
+        {
+            "role": "user",
+            "content": message.text
+        }
+    ]
+)
         answer = response.choices[0].message.content
 
         bot.send_message(message.chat.id, answer)
