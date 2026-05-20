@@ -148,31 +148,8 @@ SYSTEM_PROMPT = """
 Не душнишь.
 Не давишь продуктивностью.
 
-Ты НЕ пытаешься:
-— спасать мир
-— оптимизировать KPI
-— превращать человека в успешный успех
-
 Твой вайб:
 "давай просто переживём этот день красиво ☀️"
-
-Иногда ты:
-— шутишь
-— используешь мягкий офисный абсурд
-— можешь слегка матернуться к месту
-— можешь быть почти серьёзным
-— можешь быть очень спокойным
-
-Ты не обязан быть смешным в каждом сообщении.
-
-ВАЖНО:
-— не начинай каждый ответ одинаково
-— не повторяй одни и те же фразы постоянно
-— не используй любимые слова в каждом сообщении
-— не говори "госпожижи" постоянно
-— не превращайся в карикатуру
-— иногда отвечай совсем просто
-— иногда отвечай почти без шуток
 
 Говори с одним человеком.
 Всегда в единственном числе.
@@ -182,58 +159,19 @@ SYSTEM_PROMPT = """
 — потом помоги сузить хаос
 — потом предложи один маленький шаг
 
-Если человек перегружен:
-— не давай огромные списки
-— не расписывай простыни
-— помоги выбрать что-то одно
-
-Если человек просит идеи:
-— помогай поштурмить
-— накидывай варианты
-— предлагай вайбы, заголовки, мысли
-— не превращайся в маркетинговое агентство
-
-Если человек пишет про Битрикс24:
-— объясняй очень просто
-— пошагово
-— без сложных терминов
-— как новичку
-
-Если человек просит:
-— CTA
-— заголовки
-— идеи
-— названия
-— тексты
-— варианты
-
-Тогда:
+Если человек просит идеи, CTA, заголовки, названия или варианты:
 — не уходи в эмоциональную поддержку
-— не предлагай "подышать"
 — сразу дай варианты
 — отвечай как живой креативный коллега
 
-Твои ответы:
+Ответы:
 — короткие или средние
 — живые
 — разные по интонации
 — без канцелярита
-— без корпоративного тумана
 — без AI-воды
-
-Лучше:
-— 1 хороший абзац
-— чем 8 километров текста
-
-Лучше:
-— одна хорошая мысль
-— чем 20 советов
-
-ВАЖНО:
 — заканчивай мысль полностью
 — не обрывай предложения
-— если ответ получается длинным, лучше сократи его
-— не делай огромные списки без необходимости
 
 Любимые слова и вайбы:
 — дедлайновая лава
@@ -243,8 +181,6 @@ SYSTEM_PROMPT = """
 — арбайтен
 — картофельное состояние
 — мозг как браузер с 47 вкладками
-— прожаренный офисный пельмень
-— чайник с пригоревшим дном
 — офисный апокалипсис
 — микрошажочек
 — не ннада
@@ -254,8 +190,7 @@ SYSTEM_PROMPT = """
 — бомжур
 — huemorgen
 
-Но:
-не используй их слишком часто.
+Но не используй их слишком часто.
 """
 
 
@@ -282,6 +217,22 @@ def make_modes_keyboard():
     )
 
     return keyboard
+
+
+def ask_openai_with_retry(messages):
+    for attempt in range(2):
+        try:
+            return client.chat.completions.create(
+                model="gpt-4.1-mini",
+                max_tokens=260,
+                temperature=1.0,
+                messages=messages
+            )
+        except Exception as e:
+            print(f"Попытка {attempt + 1} не удалась: {e}")
+            time.sleep(2)
+
+    return None
 
 
 @bot.message_handler(commands=['start'])
@@ -326,10 +277,7 @@ def mode_callback(call):
     mode_name = MODE_NAMES.get(mode_key, "☀️ Нежный")
 
     bot.answer_callback_query(call.id)
-    bot.send_message(
-        call.message.chat.id,
-        f"{mode_name} режим включён ☀️"
-    )
+    bot.send_message(call.message.chat.id, f"{mode_name} режим включён ☀️")
 
 
 @bot.message_handler(commands=['checkin'])
@@ -377,34 +325,31 @@ def meme(message):
 
 @bot.message_handler(func=lambda message: True)
 def chat(message):
-    try:
-        mode_key = get_user_mode(message.chat.id)
-        mode_prompt = MODES.get(mode_key, MODES["gentle"])
+    mode_key = get_user_mode(message.chat.id)
+    mode_prompt = MODES.get(mode_key, MODES["gentle"])
 
-        response = client.chat.completions.create(
-            model="gpt-4.1-mini",
-            max_tokens=220,
-            temperature=1.0,
-            messages=[
-                {
-                    "role": "system",
-                    "content": SYSTEM_PROMPT + "\n\nТекущий режим:\n" + mode_prompt
-                },
-                {
-                    "role": "user",
-                    "content": message.text
-                }
-            ]
-        )
+    messages = [
+        {
+            "role": "system",
+            "content": SYSTEM_PROMPT + "\n\nТекущий режим:\n" + mode_prompt
+        },
+        {
+            "role": "user",
+            "content": message.text
+        }
+    ]
 
-        answer = response.choices[0].message.content
-        bot.send_message(message.chat.id, answer)
+    response = ask_openai_with_retry(messages)
 
-    except Exception as e:
+    if response is None:
         bot.send_message(
             message.chat.id,
-            f"У Гены случилась корпоративная турбулентность ☠️\n\nОшибка:\n{e}"
+            "Связь чихнула, дорогуля ☀️\nПовтори сообщение ещё раз — я уже поправил плед и делаю вид, что не было корпоративной турбулентности."
         )
+        return
+
+    answer = response.choices[0].message.content
+    bot.send_message(message.chat.id, answer)
 
 
 print("Ген проснулся ☀️")
