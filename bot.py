@@ -45,7 +45,9 @@ def start(message):
 def chat(message):
     try:
         response = client.chat.completions.create(
-            model="gpt-4.1-mini",
+           model="gpt-4.1-mini",
+max_tokens=200,
+temperature=0.8,
             messages=[
                 {
                     "role": "system",
