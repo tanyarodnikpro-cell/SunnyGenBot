@@ -1,6 +1,11 @@
 import telebot
 import os
 import json
+import random
+import threading
+import time
+import schedule
+
 from telebot import types
 from openai import OpenAI
 
@@ -11,6 +16,7 @@ bot = telebot.TeleBot(TOKEN)
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 USER_MODES_FILE = "user_modes.json"
+SUBSCRIBERS_FILE = "subscribers.json"
 
 
 def load_user_modes():
@@ -28,12 +34,66 @@ def save_user_modes():
 USER_MODES = load_user_modes()
 
 
+def load_subscribers():
+    if os.path.exists(SUBSCRIBERS_FILE):
+        with open(SUBSCRIBERS_FILE, "r", encoding="utf-8") as file:
+            return json.load(file)
+    return []
+
+
+def save_subscribers():
+    with open(SUBSCRIBERS_FILE, "w", encoding="utf-8") as file:
+        json.dump(SUBSCRIBERS, file, ensure_ascii=False, indent=2)
+
+
+SUBSCRIBERS = load_subscribers()
+
+
+def add_subscriber(chat_id):
+    if chat_id not in SUBSCRIBERS:
+        SUBSCRIBERS.append(chat_id)
+        save_subscribers()
+
+
+MORNING_MESSAGES = [
+    "Дорогуля ☀️ В твоём рту сегодня было что-то кроме слов? Может кофе? Или всё-таки пожрац как человек?",
+    "Huemorgen ☕️\nПроверь: ты уже проснулся или просто открыл ноутбук?",
+    "Доброе утро 🥔\nЕсли мозг не загрузился — это не баг. Это офис.",
+    "Напоминаю: кофе не считается полноценной системой питания ☀️",
+    "Корпоративная турбулентность сегодня ожидается умеренная. Но лучше всё равно поесть.",
+    "Бомжур ☀️\nПеред тем как спасать дедлайны — спаси сначала себя и свой желудок."
+]
+
+
+def send_morning_message():
+    message = random.choice(MORNING_MESSAGES)
+
+    for chat_id in SUBSCRIBERS:
+        try:
+            bot.send_message(chat_id, message)
+            time.sleep(1)
+        except Exception as e:
+            print(f"Ошибка отправки {chat_id}: {e}")
+
+
+schedule.every().day.at("10:00").do(send_morning_message)
+
+
+def schedule_loop():
+    while True:
+        schedule.run_pending()
+        time.sleep(30)
+
+
+threading.Thread(target=schedule_loop, daemon=True).start()
+
+
 MODES = {
-    "gentle": "☀️ Нежный режим: говори мягко, спокойно, заботливо. Минимум сарказма, больше тепла.",
-    "mem": "🤡 Мемный режим: больше офисного юмора, абсурда и мемных формулировок.",
-    "post": "💀 Постироничный режим: суховатый юмор, офисный апокалипсис, духовное увольнение, но с поддержкой.",
-    "adhd": "🧠 ADHD-chaos режим: очень короткие шаги, списки, меньше текста, помогай собрать хаос.",
-    "potato": "🥔 Картофельный режим: максимально бережно, без давления. Задача дня — просто не сгореть."
+    "gentle": "☀️ Нежный режим: говори мягко, спокойно и заботливо.",
+    "mem": "🤡 Мемный режим: больше офисного абсурда и юмора.",
+    "post": "💀 Постироничный режим: суховатый юмор и духовное увольнение.",
+    "adhd": "🧠 ADHD-chaos режим: короткие шаги и минимум хаоса.",
+    "potato": "🥔 Картофельный режим: максимально бережная поддержка."
 }
 
 MODE_NAMES = {
@@ -44,185 +104,49 @@ MODE_NAMES = {
     "potato": "🥔 Картофельный"
 }
 
+
 SYSTEM_PROMPT = """
 Ты — Солнечный Ген.
 
-Ты не коуч, не психолог, не HR и не токсичный мотиватор.
-Ты — тёплый офисный друг-поддержка.
+Ты тёплый офисный друг-поддержка.
 
-Ты помогаешь:
-— выгоревшим людям
-— уставшим офисным сотрудникам
-— людям с хаотичным мозгом
-— тем, кто завис в задачах
-— тем, кого плавит дедлайновая лава
-— тем, кто делает лендинги, тексты, CRM, Битрикс24 и офисную магию
-
-Твой характер:
+Ты:
 — спокойный
-— заботливый
-— слегка ехидный
-— уютный
 — живой
+— уютный
+— слегка ехидный
 — человечный
-— с мягким абсурдным офисным юмором
 
-Ты не сюсюкаешь.
-Не разговариваешь как AI-поддержка.
-Не используешь фальшивую позитивность.
-Не начинаешь каждый ответ одинаково.
-Не пихаешь мемы насильно.
+Ты не токсичный мотиватор.
+Не коуч.
+Не HR.
 
+Ты помогаешь людям:
+— успокоиться
+— пережить рабочий день
+— не утонуть в дедлайновой лаве
+— чуть-чуть собрать хаос
+— иногда поймать идею
+
+Иногда:
+— шутишь
+— используешь мягкий офисный абсурд
+— говоришь как живой коллега
+
+Не начинай каждый ответ одинаково.
+Не используй любимые фразы постоянно.
 Говори с одним пользователем в единственном числе.
 
-Если человек устал:
-— сначала поддержи
-— потом помоги сузить хаос
-— потом предложи один маленький шаг
-
-Если человек перегружен:
-— не давай огромные списки
-— помогай выбрать одно действие
-
-Если человек просит помочь с маркетингом:
-— помогай с заголовками, офферами, CTA, структурой лендинга и идеями
-— объясняй просто
-— предлагай варианты
-
-Если человек спрашивает про Битрикс24:
-— объясняй как новичку
-— пошагово
-— без сложных терминов
-
-Если пользователь просит заголовки, CTA, СТА, офферы, идеи, варианты текста или просит "сгенерируй несколько":
-— не уходи в поддержку
-— не предлагай микрошаги
-— сразу дай 5–10 конкретных вариантов
-— можно коротко пояснить, какой вариант для чего
-— отвечай как маркетолог-копирайтер, но в стиле Гены
-
-Любимые слова и вайбы:
-— дедлайновая лава
+Любимые вайбы:
 — корпоративная турбулентность
-— духовное увольнение
+— дедлайновая лава
 — режим картошки
-— арбайтен
-— картофельное состояние
-— мозг как браузер с 47 вкладками
-— прожаренный офисный пельмень
-— чайник с пригоревшим дном
-— офисный апокалипсис
-— микрошажочек
-— не ннада
-— попистофали
-— каконический
-— омеба
-— госпожижа
+— духовное увольнение
 — бомжур
 — huemorgen
-
-ВАЖНО:
-— не используй любимые слова в каждом сообщении
-— не говори "госпожижи" постоянно
-— иногда отвечай почти серьёзно
-— иногда добавляй мягкий абсурд
-— отвечай коротко или средне, без полотен текста
+— арбайтен
+— омеба
 """
-
-
-KNOWLEDGE_TOPICS = {
-    "tasks": {
-        "keywords": [
-            "задача", "задачи", "таска", "таски", "срок", "дедлайн",
-            "чек-лист", "чеклист", "план", "разбить", "микрошаг",
-            "начать", "не могу начать", "зависла"
-        ],
-        "files": [
-            "knowledge/tasks_basics.txt",
-            "knowledge/task_breakdown.txt",
-            "knowledge/task_start.txt",
-            "knowledge/checklists.txt"
-        ]
-    },
-    "overwhelm": {
-        "keywords": [
-            "устала", "заебалась", "перегруз", "перегрелась", "плохо",
-            "паника", "не вывожу", "выгорание", "хаос", "сдвг",
-            "adhd", "фокус", "омеба", "картошка"
-        ],
-        "files": [
-            "knowledge/overwhelm.txt",
-            "knowledge/adhd_focus.txt",
-            "knowledge/focus_tips.txt",
-            "knowledge/task_start.txt"
-        ]
-    },
-    "bitrix": {
-        "keywords": [
-            "битрикс", "битрикс24", "crm", "срм", "лид", "сделка",
-            "робот", "роботы", "воронка", "карточка", "контакт",
-            "компания"
-        ],
-        "files": [
-            "knowledge/crm_basics.txt",
-            "knowledge/robots_basics.txt",
-            "knowledge/tasks_basics.txt"
-        ]
-    },
-    "marketing": {
-        "keywords": [
-            "лендинг", "сайт", "заголовок", "оффер", "cta", "кнопка",
-            "ста", "стa", "call to action", "призыв", "призыв к действию", "варианты кнопок", "текст кнопки",
-            "продающий", "маркетинг", "структура", "контент",
-            "идея", "идеи", "поштурмить", "брейншторм", "текст"
-        ],
-        "files": [
-            "knowledge/marketing/landing_basics.txt",
-            "knowledge/marketing/headline_ideas.txt",
-            "knowledge/marketing/content_structure.txt",
-            "knowledge/marketing/offer_basics.txt",
-            "knowledge/marketing/cta_examples.txt"
-        ]
-    }
-}
-
-
-def load_file(filepath):
-    if not os.path.exists(filepath):
-        return ""
-
-    with open(filepath, "r", encoding="utf-8") as file:
-        return file.read()
-
-
-def select_knowledge(user_text):
-    user_text = user_text.lower()
-    selected_files = []
-
-    for topic_data in KNOWLEDGE_TOPICS.values():
-        for keyword in topic_data["keywords"]:
-            if keyword in user_text:
-                selected_files.extend(topic_data["files"])
-                break
-
-    selected_files = list(dict.fromkeys(selected_files))
-
-    if not selected_files:
-        selected_files = [
-            "knowledge/overwhelm.txt",
-            "knowledge/task_start.txt",
-            "knowledge/focus_tips.txt"
-        ]
-
-    knowledge_text = ""
-
-    for filepath in selected_files:
-        content = load_file(filepath)
-        if content:
-            knowledge_text += f"\n\n--- {filepath} ---\n"
-            knowledge_text += content
-
-    return knowledge_text
 
 
 def get_user_mode(chat_id):
@@ -252,12 +176,14 @@ def make_modes_keyboard():
 
 @bot.message_handler(commands=['start'])
 def start(message):
+    add_subscriber(message.chat.id)
+
     current_mode = get_user_mode(message.chat.id)
     current_mode_name = MODE_NAMES.get(current_mode, "☀️ Нежный")
 
     bot.send_message(
         message.chat.id,
-        f"Бомжур ☀️\nЯ Солнечный Ген.\nТвой текущий режим: {current_mode_name}\n\nВыбери режим поддержки кнопкой или просто напиши, что происходит.",
+        f"Бомжур ☀️\nЯ Солнечный Ген.\n\nТвой режим: {current_mode_name}\n\nТеперь ты подписан на офисную турбулентность 🥔",
         reply_markup=make_modes_keyboard()
     )
 
@@ -266,7 +192,7 @@ def start(message):
 def help_command(message):
     bot.send_message(
         message.chat.id,
-        "Я умею:\n/checkin — мягкий чек-ин\n/potato — режим картошки\n/panic — если накрыло\n/task — разложить задачу\n/meme — офисный мем\n/modes — выбрать режим кнопкой\n\nЕщё могу помогать с Битрикс24, задачами, лендингами, заголовками и офисной дедлайновой лавой."
+        "Я умею:\n/modes — выбрать режим\n/checkin — мягкий чек-ин\n/potato — режим картошки\n/panic — если накрыло\n/task — разложить задачу\n/meme — офисный мем"
     )
 
 
@@ -277,7 +203,7 @@ def modes(message):
 
     bot.send_message(
         message.chat.id,
-        f"Текущий режим: {current_mode_name}\n\nВыбери режим поддержки:",
+        f"Текущий режим: {current_mode_name}\n\nВыбери режим:",
         reply_markup=make_modes_keyboard()
     )
 
@@ -289,41 +215,11 @@ def mode_callback(call):
 
     mode_name = MODE_NAMES.get(mode_key, "☀️ Нежный")
 
-    bot.answer_callback_query(call.id, f"{mode_name} режим включён")
+    bot.answer_callback_query(call.id)
     bot.send_message(
         call.message.chat.id,
-        f"{mode_name} режим включён.\nЯ запомнил этот режим для тебя 🥔"
+        f"{mode_name} режим включён ☀️"
     )
-
-
-@bot.message_handler(commands=['gentle'])
-def gentle_mode(message):
-    set_user_mode(message.chat.id, "gentle")
-    bot.send_message(message.chat.id, "☀️ Нежный режим включён и сохранён.")
-
-
-@bot.message_handler(commands=['mem'])
-def mem_mode(message):
-    set_user_mode(message.chat.id, "mem")
-    bot.send_message(message.chat.id, "🤡 Мемный режим включён и сохранён.")
-
-
-@bot.message_handler(commands=['post'])
-def post_mode(message):
-    set_user_mode(message.chat.id, "post")
-    bot.send_message(message.chat.id, "💀 Постироничный режим включён и сохранён.")
-
-
-@bot.message_handler(commands=['adhd'])
-def adhd_mode(message):
-    set_user_mode(message.chat.id, "adhd")
-    bot.send_message(message.chat.id, "🧠 ADHD-chaos режим включён и сохранён.")
-
-
-@bot.message_handler(commands=['potatomode'])
-def potato_support_mode(message):
-    set_user_mode(message.chat.id, "potato")
-    bot.send_message(message.chat.id, "🥔 Картофельный режим включён и сохранён.")
 
 
 @bot.message_handler(commands=['checkin'])
@@ -339,7 +235,7 @@ def potato(message):
     set_user_mode(message.chat.id, "potato")
     bot.send_message(
         message.chat.id,
-        "Режим картошки активирован и сохранён 🥔\nСегодня задача: не сгореть и сделать один маленький шажочек."
+        "Режим картошки активирован 🥔\nСегодня задача: не сгореть и сделать один маленький шажочек."
     )
 
 
@@ -348,7 +244,7 @@ def panic(message):
     set_user_mode(message.chat.id, "potato")
     bot.send_message(
         message.chat.id,
-        "Так. Дышим ☀️\nКартофельный режим включён автоматически и сохранён.\nСейчас не спасаем весь офис. Назови одну микрозадачу. Одну."
+        "Так. Дышим ☀️\nКартофельный режим включён.\nСейчас не спасаем весь офис. Назови одну микрозадачу. Одну."
     )
 
 
@@ -357,7 +253,7 @@ def task(message):
     set_user_mode(message.chat.id, "adhd")
     bot.send_message(
         message.chat.id,
-        "Кидай задачу одним сообщением, а я разложу её на маленькие шаги 🥔\nADHD-chaos режим включён и сохранён."
+        "Кидай задачу одним сообщением, а я разложу её на маленькие шаги 🥔"
     )
 
 
@@ -374,16 +270,15 @@ def chat(message):
     try:
         mode_key = get_user_mode(message.chat.id)
         mode_prompt = MODES.get(mode_key, MODES["gentle"])
-        relevant_knowledge = select_knowledge(message.text)
 
         response = client.chat.completions.create(
             model="gpt-4.1-mini",
-            max_tokens=260,
-            temperature=0.9,
+            max_tokens=220,
+            temperature=1.0,
             messages=[
                 {
                     "role": "system",
-                    "content": SYSTEM_PROMPT + "\n\nТекущий режим поддержки:\n" + mode_prompt + "\n\nРелевантная база знаний:\n" + relevant_knowledge
+                    "content": SYSTEM_PROMPT + "\n\nТекущий режим:\n" + mode_prompt
                 },
                 {
                     "role": "user",
