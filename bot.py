@@ -1,5 +1,6 @@
 import telebot
 import os
+import json
 from telebot import types
 from openai import OpenAI
 
@@ -9,7 +10,24 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 bot = telebot.TeleBot(TOKEN)
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-USER_MODES = {}
+USER_MODES_FILE = "user_modes.json"
+
+
+def load_user_modes():
+    if os.path.exists(USER_MODES_FILE):
+        with open(USER_MODES_FILE, "r", encoding="utf-8") as file:
+            return json.load(file)
+
+    return {}
+
+
+def save_user_modes():
+    with open(USER_MODES_FILE, "w", encoding="utf-8") as file:
+        json.dump(USER_MODES, file, ensure_ascii=False, indent=2)
+
+
+USER_MODES = load_user_modes()
+
 
 MODES = {
     "gentle": "☀️ Нежный режим: говори мягко, спокойно, заботливо. Минимум сарказма, больше тепла.",
@@ -79,6 +97,7 @@ SYSTEM_PROMPT = """
 ☀️ 🥔 ☕️
 """
 
+
 def load_knowledge():
     knowledge_text = ""
     knowledge_folder = "knowledge"
@@ -98,7 +117,14 @@ def load_knowledge():
 
 
 def get_user_mode(chat_id):
+    chat_id = str(chat_id)
     return USER_MODES.get(chat_id, "gentle")
+
+
+def set_user_mode(chat_id, mode_key):
+    chat_id = str(chat_id)
+    USER_MODES[chat_id] = mode_key
+    save_user_modes()
 
 
 def make_modes_keyboard():
@@ -120,10 +146,12 @@ KNOWLEDGE = load_knowledge()
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    USER_MODES[message.chat.id] = "gentle"
+    current_mode = get_user_mode(message.chat.id)
+    current_mode_name = MODE_NAMES.get(current_mode, "☀️ Нежный")
+
     bot.send_message(
         message.chat.id,
-        "Бомжур, госпожижи ☀️\nЯ Солнечный Ген.\nВыбери режим поддержки кнопочкой ниже:",
+        f"Бомжур, госпожижи ☀️\nЯ Солнечный Ген.\nТвой текущий режим: {current_mode_name}\n\nВыбери режим поддержки кнопочкой ниже или просто напиши, что происходит.",
         reply_markup=make_modes_keyboard()
     )
 
@@ -138,9 +166,12 @@ def help_command(message):
 
 @bot.message_handler(commands=['modes'])
 def modes(message):
+    current_mode = get_user_mode(message.chat.id)
+    current_mode_name = MODE_NAMES.get(current_mode, "☀️ Нежный")
+
     bot.send_message(
         message.chat.id,
-        "Выбери режим поддержки:",
+        f"Текущий режим: {current_mode_name}\n\nВыбери режим поддержки:",
         reply_markup=make_modes_keyboard()
     )
 
@@ -148,45 +179,45 @@ def modes(message):
 @bot.callback_query_handler(func=lambda call: call.data.startswith("mode_"))
 def mode_callback(call):
     mode_key = call.data.replace("mode_", "")
-    USER_MODES[call.message.chat.id] = mode_key
+    set_user_mode(call.message.chat.id, mode_key)
 
     mode_name = MODE_NAMES.get(mode_key, "☀️ Нежный")
 
     bot.answer_callback_query(call.id, f"{mode_name} режим включён")
     bot.send_message(
         call.message.chat.id,
-        f"{mode_name} режим включён.\nПиши, что случилось — Ген на связи ☀️"
+        f"{mode_name} режим включён.\nЯ запомнил этот режим для тебя 🥔"
     )
 
 
 @bot.message_handler(commands=['gentle'])
 def gentle_mode(message):
-    USER_MODES[message.chat.id] = "gentle"
-    bot.send_message(message.chat.id, "☀️ Нежный режим включён.")
+    set_user_mode(message.chat.id, "gentle")
+    bot.send_message(message.chat.id, "☀️ Нежный режим включён и сохранён.")
 
 
 @bot.message_handler(commands=['mem'])
 def mem_mode(message):
-    USER_MODES[message.chat.id] = "mem"
-    bot.send_message(message.chat.id, "🤡 Мемный режим включён.")
+    set_user_mode(message.chat.id, "mem")
+    bot.send_message(message.chat.id, "🤡 Мемный режим включён и сохранён.")
 
 
 @bot.message_handler(commands=['post'])
 def post_mode(message):
-    USER_MODES[message.chat.id] = "post"
-    bot.send_message(message.chat.id, "💀 Постироничный режим включён.")
+    set_user_mode(message.chat.id, "post")
+    bot.send_message(message.chat.id, "💀 Постироничный режим включён и сохранён.")
 
 
 @bot.message_handler(commands=['adhd'])
 def adhd_mode(message):
-    USER_MODES[message.chat.id] = "adhd"
-    bot.send_message(message.chat.id, "🧠 ADHD-chaos режим включён.")
+    set_user_mode(message.chat.id, "adhd")
+    bot.send_message(message.chat.id, "🧠 ADHD-chaos режим включён и сохранён.")
 
 
 @bot.message_handler(commands=['potatomode'])
 def potato_support_mode(message):
-    USER_MODES[message.chat.id] = "potato"
-    bot.send_message(message.chat.id, "🥔 Картофельный режим включён.")
+    set_user_mode(message.chat.id, "potato")
+    bot.send_message(message.chat.id, "🥔 Картофельный режим включён и сохранён.")
 
 
 @bot.message_handler(commands=['checkin'])
@@ -199,28 +230,28 @@ def checkin(message):
 
 @bot.message_handler(commands=['potato'])
 def potato(message):
-    USER_MODES[message.chat.id] = "potato"
+    set_user_mode(message.chat.id, "potato")
     bot.send_message(
         message.chat.id,
-        "Режим картошки активирован 🥔\nСегодня задача: не сгореть и сделать один маленький шажочек."
+        "Режим картошки активирован и сохранён 🥔\nСегодня задача: не сгореть и сделать один маленький шажочек."
     )
 
 
 @bot.message_handler(commands=['panic'])
 def panic(message):
-    USER_MODES[message.chat.id] = "potato"
+    set_user_mode(message.chat.id, "potato")
     bot.send_message(
         message.chat.id,
-        "Так. Дышим ☀️\nКартофельный режим включён автоматически.\nНазови одну микрозадачу. Одну."
+        "Так. Дышим ☀️\nКартофельный режим включён автоматически и сохранён.\nНазови одну микрозадачу. Одну."
     )
 
 
 @bot.message_handler(commands=['task'])
 def task(message):
-    USER_MODES[message.chat.id] = "adhd"
+    set_user_mode(message.chat.id, "adhd")
     bot.send_message(
         message.chat.id,
-        "Кидай задачу одним сообщением, а я разложу её на маленькие шаги 🥔"
+        "Кидай задачу одним сообщением, а я разложу её на маленькие шаги 🥔\nADHD-chaos режим включён и сохранён."
     )
 
 
