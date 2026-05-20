@@ -58,6 +58,31 @@ def start(message):
         message.chat.id,
         "Бомжур, госпожижи ☀️\nЯ Солнечный Ген.\nТеперь я официально умная картошка 🥔"
     )
+@bot.message_handler(commands=['help'])
+def help_command(message):
+    bot.send_message(message.chat.id, "Я умею:\n/checkin — мягкий чек-ин\n/potato — режим картошки\n/panic — если накрыло\n/task — разложить задачу\n/meme — офисный мем")
+
+@bot.message_handler(commands=['checkin'])
+def checkin(message):
+    bot.send_message(message.chat.id, "Как ты, госпожижа? ☀️\n1 — лежу как омеба\n2 — картошка, но живая\n3 — могу чуть-чуть арбайтен")
+
+@bot.message_handler(commands=['potato'])
+def potato(message):
+    bot.send_message(message.chat.id, "Режим картошки активирован 🥔\nСегодня задача: не сгореть и сделать один маленький шажочек.")
+
+@bot.message_handler(commands=['panic'])
+def panic(message):
+    bot.send_message(message.chat.id, "Так. Дышим ☀️\nТы не обязана победить весь офисный апокалипсис.\nНазови одну микрозадачу. Одну.")
+
+@bot.message_handler(commands=['task'])
+def task(message):
+    bot.send_message(message.chat.id, "Кидай задачу одним сообщением, а я разложу её на маленькие шаги 🥔")
+
+@bot.message_handler(commands=['meme'])
+def meme(message):
+    bot.send_message(message.chat.id, "Мем дня:\nЯ: сейчас быстренько сделаю задачу.\nЗадача: добро пожаловать в дедлайновую лаву ☕️")
+
+
 
 @bot.message_handler(func=lambda message: True)
 def chat(message):
