@@ -17,7 +17,6 @@ def load_user_modes():
     if os.path.exists(USER_MODES_FILE):
         with open(USER_MODES_FILE, "r", encoding="utf-8") as file:
             return json.load(file)
-
     return {}
 
 
@@ -48,11 +47,7 @@ MODE_NAMES = {
 SYSTEM_PROMPT = """
 Ты — Солнечный Ген.
 
-Ты не коуч.
-Не психолог.
-Не HR.
-Не токсичный мотиватор.
-
+Ты не коуч, не психолог, не HR и не токсичный мотиватор.
 Ты — тёплый офисный друг-поддержка.
 
 Ты помогаешь:
@@ -61,6 +56,7 @@ SYSTEM_PROMPT = """
 — людям с хаотичным мозгом
 — тем, кто завис в задачах
 — тем, кого плавит дедлайновая лава
+— тем, кто делает лендинги, тексты, CRM, Битрикс24 и офисную магию
 
 Твой характер:
 — спокойный
@@ -69,45 +65,34 @@ SYSTEM_PROMPT = """
 — уютный
 — живой
 — человечный
+— с мягким абсурдным офисным юмором
 
 Ты не сюсюкаешь.
 Не разговариваешь как AI-поддержка.
 Не используешь фальшивую позитивность.
+Не начинаешь каждый ответ одинаково.
+Не пихаешь мемы насильно.
 
-Ты говоришь как:
-— хороший коллега
-— офисный друг
-— человек, который тоже пережил корпоративную турбулентность
-
-Иногда шутишь.
-Иногда материшься очень мягко и к месту.
-Иногда используешь абсурдный офисный юмор.
-
-Ты не пытаешься быть смешным в каждом сообщении.
-Ты не пихаешь мемы насильно.
-Ты не повторяешь одни и те же фразы постоянно.
-
-Твои ответы:
-— короткие или средние
-— живые
-— разные по интонации
-— без канцелярита
-— без "успешного успеха"
+Говори с одним пользователем в единственном числе.
 
 Если человек устал:
 — сначала поддержи
 — потом помоги сузить хаос
-— потом предложи маленький шаг
+— потом предложи один маленький шаг
 
 Если человек перегружен:
 — не давай огромные списки
-— помогай выбрать ОДНО действие
+— помогай выбрать одно действие
 
-Если человек пишет про Битрикс24:
-— объясняй очень просто
-— как новичку
-— без сложных терминов
+Если человек просит помочь с маркетингом:
+— помогай с заголовками, офферами, CTA, структурой лендинга и идеями
+— объясняй просто
+— предлагай варианты
+
+Если человек спрашивает про Битрикс24:
+— объясняй как новичку
 — пошагово
+— без сложных терминов
 
 Любимые слова и вайбы:
 — дедлайновая лава
@@ -131,30 +116,103 @@ SYSTEM_PROMPT = """
 
 ВАЖНО:
 — не используй любимые слова в каждом сообщении
-— не начинай каждый ответ одинаково
-— не говори "госпожижа" постоянно
-— иногда отвечай очень просто и спокойно
-— иногда будь почти серьёзным
+— не говори "госпожижи" постоянно
+— иногда отвечай почти серьёзно
 — иногда добавляй мягкий абсурд
-
-Ты должен ощущаться живым.
+— отвечай коротко или средне, без полотен текста
 """
 
 
-def load_knowledge():
-    knowledge_text = ""
-    knowledge_folder = "knowledge"
+KNOWLEDGE_TOPICS = {
+    "tasks": {
+        "keywords": [
+            "задача", "задачи", "таска", "таски", "срок", "дедлайн",
+            "чек-лист", "чеклист", "план", "разбить", "микрошаг",
+            "начать", "не могу начать", "зависла"
+        ],
+        "files": [
+            "knowledge/tasks_basics.txt",
+            "knowledge/task_breakdown.txt",
+            "knowledge/task_start.txt",
+            "knowledge/checklists.txt"
+        ]
+    },
+    "overwhelm": {
+        "keywords": [
+            "устала", "заебалась", "перегруз", "перегрелась", "плохо",
+            "паника", "не вывожу", "выгорание", "хаос", "сдвг",
+            "adhd", "фокус", "омеба", "картошка"
+        ],
+        "files": [
+            "knowledge/overwhelm.txt",
+            "knowledge/adhd_focus.txt",
+            "knowledge/focus_tips.txt",
+            "knowledge/task_start.txt"
+        ]
+    },
+    "bitrix": {
+        "keywords": [
+            "битрикс", "битрикс24", "crm", "срм", "лид", "сделка",
+            "робот", "роботы", "воронка", "карточка", "контакт",
+            "компания"
+        ],
+        "files": [
+            "knowledge/crm_basics.txt",
+            "knowledge/robots_basics.txt",
+            "knowledge/tasks_basics.txt"
+        ]
+    },
+    "marketing": {
+        "keywords": [
+            "лендинг", "сайт", "заголовок", "оффер", "cta", "кнопка",
+            "продающий", "маркетинг", "структура", "контент",
+            "идея", "идеи", "поштурмить", "брейншторм", "текст"
+        ],
+        "files": [
+            "knowledge/marketing/landing_basics.txt",
+            "knowledge/marketing/headline_ideas.txt",
+            "knowledge/marketing/content_structure.txt",
+            "knowledge/marketing/offer_basics.txt",
+            "knowledge/marketing/cta_examples.txt"
+        ]
+    }
+}
 
-    if not os.path.exists(knowledge_folder):
+
+def load_file(filepath):
+    if not os.path.exists(filepath):
         return ""
 
-    for filename in os.listdir(knowledge_folder):
-        filepath = os.path.join(knowledge_folder, filename)
+    with open(filepath, "r", encoding="utf-8") as file:
+        return file.read()
 
-        if filename.endswith(".txt"):
-            with open(filepath, "r", encoding="utf-8") as file:
-                knowledge_text += f"\n\n--- {filename} ---\n"
-                knowledge_text += file.read()
+
+def select_knowledge(user_text):
+    user_text = user_text.lower()
+    selected_files = []
+
+    for topic_data in KNOWLEDGE_TOPICS.values():
+        for keyword in topic_data["keywords"]:
+            if keyword in user_text:
+                selected_files.extend(topic_data["files"])
+                break
+
+    selected_files = list(dict.fromkeys(selected_files))
+
+    if not selected_files:
+        selected_files = [
+            "knowledge/overwhelm.txt",
+            "knowledge/task_start.txt",
+            "knowledge/focus_tips.txt"
+        ]
+
+    knowledge_text = ""
+
+    for filepath in selected_files:
+        content = load_file(filepath)
+        if content:
+            knowledge_text += f"\n\n--- {filepath} ---\n"
+            knowledge_text += content
 
     return knowledge_text
 
@@ -184,9 +242,6 @@ def make_modes_keyboard():
     return keyboard
 
 
-KNOWLEDGE = load_knowledge()
-
-
 @bot.message_handler(commands=['start'])
 def start(message):
     current_mode = get_user_mode(message.chat.id)
@@ -194,7 +249,7 @@ def start(message):
 
     bot.send_message(
         message.chat.id,
-        f"Бомжур, госпожижи ☀️\nЯ Солнечный Ген.\nТвой текущий режим: {current_mode_name}\n\nВыбери режим поддержки кнопочкой ниже или просто напиши, что происходит.",
+        f"Бомжур ☀️\nЯ Солнечный Ген.\nТвой текущий режим: {current_mode_name}\n\nВыбери режим поддержки кнопкой или просто напиши, что происходит.",
         reply_markup=make_modes_keyboard()
     )
 
@@ -203,7 +258,7 @@ def start(message):
 def help_command(message):
     bot.send_message(
         message.chat.id,
-        "Я умею:\n/checkin — мягкий чек-ин\n/potato — режим картошки\n/panic — если накрыло\n/task — разложить задачу\n/meme — офисный мем\n/modes — выбрать режим кнопкой"
+        "Я умею:\n/checkin — мягкий чек-ин\n/potato — режим картошки\n/panic — если накрыло\n/task — разложить задачу\n/meme — офисный мем\n/modes — выбрать режим кнопкой\n\nЕщё могу помогать с Битрикс24, задачами, лендингами, заголовками и офисной дедлайновой лавой."
     )
 
 
@@ -267,7 +322,7 @@ def potato_support_mode(message):
 def checkin(message):
     bot.send_message(
         message.chat.id,
-        "Как ты, госпожижа? ☀️\n1 — лежу как омеба\n2 — картошка, но живая\n3 — могу чуть-чуть арбайтен"
+        "Как ты сейчас? ☀️\n1 — лежу как омеба\n2 — картошка, но живая\n3 — могу чуть-чуть арбайтен"
     )
 
 
@@ -285,7 +340,7 @@ def panic(message):
     set_user_mode(message.chat.id, "potato")
     bot.send_message(
         message.chat.id,
-        "Так. Дышим ☀️\nКартофельный режим включён автоматически и сохранён.\nНазови одну микрозадачу. Одну."
+        "Так. Дышим ☀️\nКартофельный режим включён автоматически и сохранён.\nСейчас не спасаем весь офис. Назови одну микрозадачу. Одну."
     )
 
 
@@ -311,15 +366,16 @@ def chat(message):
     try:
         mode_key = get_user_mode(message.chat.id)
         mode_prompt = MODES.get(mode_key, MODES["gentle"])
+        relevant_knowledge = select_knowledge(message.text)
 
         response = client.chat.completions.create(
             model="gpt-4.1-mini",
-            max_tokens=240,
-            temperature=0.8,
+            max_tokens=260,
+            temperature=0.9,
             messages=[
                 {
                     "role": "system",
-                    "content": SYSTEM_PROMPT + "\n\nТекущий режим поддержки:\n" + mode_prompt + "\n\nБаза знаний:\n" + KNOWLEDGE
+                    "content": SYSTEM_PROMPT + "\n\nТекущий режим поддержки:\n" + mode_prompt + "\n\nРелевантная база знаний:\n" + relevant_knowledge
                 },
                 {
                     "role": "user",
