@@ -282,11 +282,38 @@ def mode_callback(call):
 
 @bot.message_handler(commands=['checkin'])
 def checkin(message):
-    bot.send_message(
-        message.chat.id,
-        "Как ты сейчас? ☀️\n1 — лежу как омеба\n2 — картошка, но живая\n3 — могу чуть-чуть арбайтен"
+    keyboard = types.InlineKeyboardMarkup(row_width=1)
+
+    keyboard.add(
+        types.InlineKeyboardButton("🥔 Я картошка, но онлайн", callback_data="checkin_potato"),
+        types.InlineKeyboardButton("💀 Духовно уволился", callback_data="checkin_dead"),
+        types.InlineKeyboardButton("🤡 Сейчас посмеюсь, иначе заплачу", callback_data="checkin_laugh"),
+        types.InlineKeyboardButton("🧠 Мозг как 47 вкладок", callback_data="checkin_chaos"),
+        types.InlineKeyboardButton("🔥 В астрале, но стабильно", callback_data="checkin_stable"),
+        types.InlineKeyboardButton("☀️ Переживём день красиво", callback_data="checkin_sun")
     )
 
+    bot.send_message(
+        message.chat.id,
+        "Как ты сегодня? Выбери мем, а не формулируй боль словами ☀️",
+        reply_markup=keyboard
+    )
+@bot.callback_query_handler(func=lambda call: call.data.startswith("checkin_"))
+def checkin_callback(call):
+    answers = {
+        "checkin_potato": "🥔 Принято. Сегодня не строим империю. Один микрошажочек — уже подвиг.",
+        "checkin_dead": "💀 Духовное увольнение зафиксировано. Работаем тихо, без героизма и лишнего самосожжения.",
+        "checkin_laugh": "🤡 Понял. Смех — это когда психика надела клоунский нос и пошла арбайтен.",
+        "checkin_chaos": "🧠 47 вкладок обнаружено. Сейчас не спасаем весь офис. Выбираем одну самую орущую задачу.",
+        "checkin_stable": "🔥 В астрале, но стабильно — уже почти стратегия. Дышим и не трогаем прод руками.",
+        "checkin_sun": "☀️ Вот и договорились. Не идеально, не героически — просто переживём этот день красиво."
+    }
+
+    bot.answer_callback_query(call.id)
+
+    bot.send_message(
+        call.message.chat.id,
+        answers.get(call.data, "☀️ Ген рядом. Офисный апокалипсис под наблюдением.")
 
 @bot.message_handler(commands=['potato'])
 def potato(message):
