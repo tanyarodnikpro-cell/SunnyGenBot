@@ -1,3 +1,4 @@
+```python
 import telebot
 import os
 import json
@@ -102,6 +103,38 @@ MODE_NAMES = {
     "post": "💀 Постироничный",
     "adhd": "🧠 ADHD-chaos",
     "potato": "🥔 Картофельный"
+}
+
+MODE_RESPONSES = {
+    "gentle": [
+        "☀️ Так. Без геройства сегодня. Просто живём день аккуратно.",
+        "☀️ Потихоньку, спокойно, без самосожжения.",
+        "☀️ Давай просто переживём этот день красиво."
+    ],
+
+    "mem": [
+        "🤡 Психика надела клоунский нос и пошла арбайтен.",
+        "🤡 Корпоративная турбулентность штатная. Паниковать будем позже.",
+        "🤡 Teams издал звук — давление упало."
+    ],
+
+    "post": [
+        "💀 Духовное увольнение оформлено без подписи сторон.",
+        "💀 Вся в поту и хуй во рту. Рабочий настрой зафиксирован.",
+        "💀 Работаем без иллюзий и без резких движений."
+    ],
+
+    "adhd": [
+        "🧠 47 вкладок обнаружено. Где музыка — неизвестно.",
+        "🧠 Одну задачу. Одну. Не надо устраивать фестиваль хаоса.",
+        "🧠 Мозг открыл TikTok внутри головы."
+    ],
+
+    "potato": [
+        "🥔 Режим картошки активирован. Сегодня задача: не ебнуться окончательно.",
+        "🥔 Психика ушла полежать. Работаем аккуратно.",
+        "🥔 Сегодня арбайтен без геройства."
+    ]
 }
 
 
@@ -253,7 +286,7 @@ def start(message):
 def help_command(message):
     bot.send_message(
         message.chat.id,
-        "Я умею:\n/modes — выбрать режим\n/checkin — мягкий чек-ин\n/potato — режим картошки\n/panic — если накрыло\n/task — разложить задачу\n/meme — офисный мем"
+        "Я умею:\n/modes — выбрать режим\n/potato — режим картошки\n/panic — если накрыло\n/task — разложить задачу\n/meme — офисный мем"
     )
 
 
@@ -274,61 +307,29 @@ def mode_callback(call):
     mode_key = call.data.replace("mode_", "")
     set_user_mode(call.message.chat.id, mode_key)
 
-    mode_name = MODE_NAMES.get(mode_key, "☀️ Нежный")
+    responses = MODE_RESPONSES.get(mode_key, ["☀️ Режим обновлён."])
+    random_response = random.choice(responses)
 
     bot.answer_callback_query(call.id)
-    bot.send_message(call.message.chat.id, f"{mode_name} режим включён ☀️")
-
-
-@bot.message_handler(commands=['checkin'])
-def checkin(message):
-    keyboard = types.InlineKeyboardMarkup(row_width=1)
-
-    keyboard.add(
-        types.InlineKeyboardButton("🥔 Я картошка, но онлайн", callback_data="checkin_potato"),
-        types.InlineKeyboardButton("💀 Духовно уволился", callback_data="checkin_dead"),
-        types.InlineKeyboardButton("🤡 Сейчас посмеюсь, иначе заплачу", callback_data="checkin_laugh"),
-        types.InlineKeyboardButton("🧠 Мозг как 47 вкладок", callback_data="checkin_chaos"),
-        types.InlineKeyboardButton("🔥 В астрале, но стабильно", callback_data="checkin_stable"),
-        types.InlineKeyboardButton("☀️ Переживём день красиво", callback_data="checkin_sun")
-    )
-
-    bot.send_message(
-        message.chat.id,
-        "Как ты сегодня? Выбери мем, а не формулируй боль словами ☀️",
-        reply_markup=keyboard
-    )
-@bot.callback_query_handler(func=lambda call: call.data.startswith("checkin_"))
-def checkin_callback(call):
-    answers = {
-        "checkin_potato": "🥔 Принято. Сегодня не строим империю. Один микрошажочек — уже подвиг.",
-        "checkin_dead": "💀 Духовное увольнение зафиксировано. Работаем тихо, без героизма и лишнего самосожжения.",
-        "checkin_laugh": "🤡 Понял. Смех — это когда психика надела клоунский нос и пошла арбайтен.",
-        "checkin_chaos": "🧠 47 вкладок обнаружено. Сейчас не спасаем весь офис. Выбираем одну самую орущую задачу.",
-        "checkin_stable": "🔥 В астрале, но стабильно — уже почти стратегия. Дышим и не трогаем прод руками.",
-        "checkin_sun": "☀️ Вот и договорились. Не идеально, не героически — просто переживём этот день красиво."
-    }
-
-    bot.answer_callback_query(call.id)
-
-    bot.send_message(
-        call.message.chat.id,
-        answers.get(call.data, "☀️ Ген рядом. Офисный апокалипсис под наблюдением.")
-    )
+    bot.send_message(call.message.chat.id, random_response)
 
 
 @bot.message_handler(commands=['potato'])
 def potato(message):
     set_user_mode(message.chat.id, "potato")
+
+    response = random.choice(MODE_RESPONSES["potato"])
+
     bot.send_message(
         message.chat.id,
-        "Режим картошки активирован 🥔\nСегодня задача: не сгореть и сделать один маленький шажочек."
+        response
     )
 
 
 @bot.message_handler(commands=['panic'])
 def panic(message):
     set_user_mode(message.chat.id, "potato")
+
     bot.send_message(
         message.chat.id,
         "Так. Дышим ☀️\nКартофельный режим включён.\nСейчас не спасаем весь офис. Назови одну микрозадачу. Одну."
@@ -338,6 +339,7 @@ def panic(message):
 @bot.message_handler(commands=['task'])
 def task(message):
     set_user_mode(message.chat.id, "adhd")
+
     bot.send_message(
         message.chat.id,
         "Кидай задачу одним сообщением, а я разложу её на маленькие шаги 🥔"
@@ -346,9 +348,21 @@ def task(message):
 
 @bot.message_handler(commands=['meme'])
 def meme(message):
+    memes = [
+        "Я: сейчас быстренько сделаю задачу.\nЗадача: добро пожаловать в дедлайновую лаву ☕️",
+
+        "Когда открыл Битрикс и Битрикс открыл тебя.",
+
+        "Мой карьерный план: не ебнуться.",
+
+        "Я не прокрастинирую. Я жду пока паника включит турборежим.",
+
+        "Сегодня мой максимум — не расплакаться в Excel."
+    ]
+
     bot.send_message(
         message.chat.id,
-        "Мем дня:\nЯ: сейчас быстренько сделаю задачу.\nЗадача: добро пожаловать в дедлайновую лаву ☕️"
+        random.choice(memes)
     )
 
 
@@ -384,3 +398,4 @@ def chat(message):
 print("Ген проснулся ☀️")
 
 bot.infinity_polling()
+```
