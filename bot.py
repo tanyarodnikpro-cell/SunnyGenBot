@@ -1,4 +1,3 @@
-```python
 import telebot
 import os
 import json
