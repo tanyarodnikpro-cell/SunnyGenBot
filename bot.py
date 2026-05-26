@@ -314,6 +314,8 @@ def checkin_callback(call):
     bot.send_message(
         call.message.chat.id,
         answers.get(call.data, "☀️ Ген рядом. Офисный апокалипсис под наблюдением.")
+    )
+
 
 @bot.message_handler(commands=['potato'])
 def potato(message):
