@@ -16,6 +16,7 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 # После перезапуска они исчезают и никогда не записываются на диск.
 USER_MODES = {}
 CONSENTED_USERS = set()
+PENDING_TASK_USERS = set()
 
 PRIVACY_NOTICE = """
 🔐 Приватность Солнечного Гена
@@ -62,43 +63,25 @@ MODE_RESPONSES = {
         "🤡 Teams издал звук — давление упало."
     ],
     "post": [
-
-    "💀 Духовно уже на даче.",
-
-    "💀 Работаем без иллюзий.",
-
-    "💀 Психика вышла покурить и не вернулась.",
-
-    "💀 Сегодня арбайтен через внутреннее страдание.",
-
-    "💀 Внутри — пепел. Снаружи — созвон.",
-
-    "💀 Корпоративный апокалипсис идёт по расписанию.",
-
-    "💀 Не день, а лепнина из говна и палок.",
-
-    "💀 Состояние: тихо ору в Excel.",
-
-    "💀 Работаем на морально-волевых и кофеине.",
-
-    "💀 Внутренне уже написала заявление.",
-
-    "💀 Teams пиликнул — душа покинула тело.",
-
-    "💀 Мотивация найдена не была.",
-
-    "💀 Дедлайновая лава подошла к горлу.",
-
-    "💀 Иван-дурак на коне-дебиле въехал в рабочий день.",
-
-    "💀 Плавали, знаем, вся жопа в ракушках.",
-
-    "💀 Внутренний ресурс: две макаронины.",
-
-    "💀 Сегодня не живём, а технически существуем.",
-
-    "💀 Рабочее настроение: чай в ладошку и в дорожку."
-],
+        "💀 Духовно уже на даче.",
+        "💀 Работаем без иллюзий.",
+        "💀 Психика вышла покурить и не вернулась.",
+        "💀 Сегодня арбайтен через внутреннее страдание.",
+        "💀 Внутри — пепел. Снаружи — созвон.",
+        "💀 Корпоративный апокалипсис идёт по расписанию.",
+        "💀 Не день, а лепнина из говна и палок.",
+        "💀 Состояние: тихо ору в Excel.",
+        "💀 Работаем на морально-волевых и кофеине.",
+        "💀 Внутренне уже написала заявление.",
+        "💀 Teams пиликнул — душа покинула тело.",
+        "💀 Мотивация найдена не была.",
+        "💀 Дедлайновая лава подошла к горлу.",
+        "💀 Иван-дурак на коне-дебиле въехал в рабочий день.",
+        "💀 Плавали, знаем, вся жопа в ракушках.",
+        "💀 Внутренний ресурс: две макаронины.",
+        "💀 Сегодня не живём, а технически существуем.",
+        "💀 Рабочее настроение: чай в ладошку и в дорожку."
+    ],
     "adhd": [
         "🧠 47 вкладок обнаружено.",
         "🧠 Одну задачу. Одну. Не устраиваем фестиваль хаоса.",
@@ -200,6 +183,21 @@ SYSTEM_PROMPT = """
 Но не используй их слишком часто.
 """
 
+TASK_PROMPT = """
+Сейчас включён одноразовый режим подробного разбора задачи.
+
+Разбери задачу практично и без воды:
+— сначала сформулируй понятную цель одним предложением;
+— затем дай 5–8 конкретных пронумерованных шагов в правильном порядке;
+— каждый шаг должен быть небольшим действием, а не расплывчатым советом;
+— отдельно укажи «С чего начать прямо сейчас» — одно действие примерно на 5–10 минут;
+— отдельно укажи «Что пока можно не делать», чтобы не раздувать хаос;
+— учитывай усталость и не требуй героизма.
+
+Если для полезного разбора критически не хватает информации, задай не больше двух коротких уточняющих вопросов и не выдумывай детали.
+Ответ может быть развёрнутым, но остаётся живым, ясным и без канцелярита.
+""".strip()
+
 
 def get_user_mode(chat_id):
     chat_id = str(chat_id)
@@ -252,12 +250,12 @@ def request_ai_consent(chat_id):
     )
 
 
-def ask_openai_with_retry(messages):
+def ask_openai_with_retry(messages, max_tokens=260):
     for attempt in range(2):
         try:
             return client.chat.completions.create(
                 model="gpt-4.1-mini",
-                max_tokens=260,
+                max_tokens=max_tokens,
                 temperature=1.0,
                 messages=messages
             )
@@ -285,7 +283,7 @@ def start(message):
 def help_command(message):
     bot.send_message(
         message.chat.id,
-        "Я умею:\n/modes — выбрать режим\n/potato — режим картошки\n/panic — если накрыло\n/task — разложить задачу\n/meme — офисный мем\n/privacy — как обрабатываются сообщения\n/revoke — отозвать согласие на AI"
+        "Я умею:\n/modes — выбрать режим\n/potato — режим картошки\n/panic — если накрыло\n/task — подробно разложить следующую задачу\n/meme — офисный мем\n/privacy — как обрабатываются сообщения\n/revoke — отозвать согласие на AI"
     )
 
 
@@ -299,6 +297,7 @@ def revoke_consent(message):
     chat_id = str(message.chat.id)
     CONSENTED_USERS.discard(chat_id)
     USER_MODES.pop(chat_id, None)
+    PENDING_TASK_USERS.discard(chat_id)
     bot.send_message(
         message.chat.id,
         "Согласие отозвано. Временный режим удалён из памяти. AI-ответы отключены до нового согласия через /privacy."
@@ -332,6 +331,7 @@ def privacy_callback(call):
 
     CONSENTED_USERS.discard(chat_id)
     USER_MODES.pop(chat_id, None)
+    PENDING_TASK_USERS.discard(chat_id)
     bot.answer_callback_query(call.id, "AI-обработка отключена")
     bot.send_message(
         call.message.chat.id,
@@ -341,8 +341,10 @@ def privacy_callback(call):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("mode_"))
 def mode_callback(call):
+    chat_id = str(call.message.chat.id)
     mode_key = call.data.replace("mode_", "")
     set_user_mode(call.message.chat.id, mode_key)
+    PENDING_TASK_USERS.discard(chat_id)
 
     responses = MODE_RESPONSES.get(mode_key, ["☀️ Режим обновлён."])
     random_response = random.choice(responses)
@@ -353,6 +355,7 @@ def mode_callback(call):
 
 @bot.message_handler(commands=['potato'])
 def potato(message):
+    PENDING_TASK_USERS.discard(str(message.chat.id))
     set_user_mode(message.chat.id, "potato")
     response = random.choice(MODE_RESPONSES["potato"])
 
@@ -364,6 +367,7 @@ def potato(message):
 
 @bot.message_handler(commands=['panic'])
 def panic(message):
+    PENDING_TASK_USERS.discard(str(message.chat.id))
     set_user_mode(message.chat.id, "potato")
     bot.send_message(
         message.chat.id,
@@ -373,10 +377,10 @@ def panic(message):
 
 @bot.message_handler(commands=['task'])
 def task(message):
-    set_user_mode(message.chat.id, "adhd")
+    PENDING_TASK_USERS.add(str(message.chat.id))
     bot.send_message(
         message.chat.id,
-        "Кидай задачу одним сообщением, а я разложу её на маленькие шаги 🥔"
+        "Кидай задачу одним сообщением. Я подробно разложу её на понятные шаги, выберу первый микрошажочек и отрежу лишнее 🥔"
     )
 
 
@@ -427,13 +431,22 @@ def chat(message):
         request_ai_consent(message.chat.id)
         return
 
+    chat_id = str(message.chat.id)
+    task_requested = chat_id in PENDING_TASK_USERS
     mode_key = get_user_mode(message.chat.id)
     mode_prompt = MODES.get(mode_key, MODES["gentle"])
+
+    if task_requested:
+        active_prompt = SYSTEM_PROMPT + "\n\n" + TASK_PROMPT
+        max_tokens = 800
+    else:
+        active_prompt = SYSTEM_PROMPT + "\n\nТекущий режим:\n" + mode_prompt
+        max_tokens = 260
 
     messages = [
         {
             "role": "system",
-            "content": SYSTEM_PROMPT + "\n\nТекущий режим:\n" + mode_prompt
+            "content": active_prompt
         },
         {
             "role": "user",
@@ -441,7 +454,7 @@ def chat(message):
         }
     ]
 
-    response = ask_openai_with_retry(messages)
+    response = ask_openai_with_retry(messages, max_tokens=max_tokens)
 
     if response is None:
         bot.send_message(
@@ -452,6 +465,9 @@ def chat(message):
 
     answer = response.choices[0].message.content
     bot.send_message(message.chat.id, answer)
+
+    if task_requested:
+        PENDING_TASK_USERS.discard(chat_id)
 
 
 print("Ген проснулся ☀️")
