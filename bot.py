@@ -1,10 +1,7 @@
 import telebot
 import os
-import json
 import random
-import threading
 import time
-import schedule
 
 from telebot import types
 from openai import OpenAI
@@ -15,77 +12,26 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 bot = telebot.TeleBot(TOKEN)
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-USER_MODES_FILE = "user_modes.json"
-SUBSCRIBERS_FILE = "subscribers.json"
+# Эти данные существуют только в оперативной памяти процесса.
+# После перезапуска они исчезают и никогда не записываются на диск.
+USER_MODES = {}
+CONSENTED_USERS = set()
 
+PRIVACY_NOTICE = """
+🔐 Приватность Солнечного Гена
 
-def load_user_modes():
-    if os.path.exists(USER_MODES_FILE):
-        with open(USER_MODES_FILE, "r", encoding="utf-8") as file:
-            return json.load(file)
-    return {}
+Ген не сохраняет на диск:
+— Telegram ID, имя или username;
+— историю переписки;
+— выбранный режим общения;
+— содержимое сообщений.
 
+Режим и факт согласия существуют только в оперативной памяти и исчезают после перезапуска.
 
-def save_user_modes():
-    with open(USER_MODES_FILE, "w", encoding="utf-8") as file:
-        json.dump(USER_MODES, file, ensure_ascii=False, indent=2)
+Чтобы получить AI-ответ, текст твоего сообщения передаётся сервису OpenAI. В передаче и обработке также участвуют Telegram и серверная инфраструктура. Не отправляй пароли, банковские данные, документы, медицинские сведения и рабочие секреты.
 
-
-USER_MODES = load_user_modes()
-
-
-def load_subscribers():
-    if os.path.exists(SUBSCRIBERS_FILE):
-        with open(SUBSCRIBERS_FILE, "r", encoding="utf-8") as file:
-            return json.load(file)
-    return []
-
-
-def save_subscribers():
-    with open(SUBSCRIBERS_FILE, "w", encoding="utf-8") as file:
-        json.dump(SUBSCRIBERS, file, ensure_ascii=False, indent=2)
-
-
-SUBSCRIBERS = load_subscribers()
-
-
-def add_subscriber(chat_id):
-    if chat_id not in SUBSCRIBERS:
-        SUBSCRIBERS.append(chat_id)
-        save_subscribers()
-
-
-MORNING_MESSAGES = [
-    "Дорогуля ☀️ В твоём рту сегодня было что-то кроме слов? Может кофе? Или всё-таки пожрац как человек?",
-    "Huemorgen ☕️\nПроверь: ты уже проснулся или просто открыл ноутбук?",
-    "Доброе утро 🥔\nЕсли мозг не загрузился — это не баг. Это офис.",
-    "Напоминаю: кофе не считается полноценной системой питания ☀️",
-    "Корпоративная турбулентность сегодня ожидается умеренная. Но лучше всё равно поесть.",
-    "Бомжур ☀️\nПеред тем как спасать дедлайны — спаси сначала себя и свой желудок."
-]
-
-
-def send_morning_message():
-    message = random.choice(MORNING_MESSAGES)
-
-    for chat_id in SUBSCRIBERS:
-        try:
-            bot.send_message(chat_id, message)
-            time.sleep(1)
-        except Exception as e:
-            print(f"Ошибка отправки {chat_id}: {e}")
-
-
-schedule.every().day.at("10:00").do(send_morning_message)
-
-
-def schedule_loop():
-    while True:
-        schedule.run_pending()
-        time.sleep(30)
-
-
-threading.Thread(target=schedule_loop, daemon=True).start()
+Нажимая «Согласен», ты разрешаешь обработать и трансгранично передать текст сообщения исключительно для формирования ответа. Согласие можно отозвать командой /revoke.
+""".strip()
 
 
 MODES = {
@@ -263,7 +209,6 @@ def get_user_mode(chat_id):
 def set_user_mode(chat_id, mode_key):
     chat_id = str(chat_id)
     USER_MODES[chat_id] = mode_key
-    save_user_modes()
 
 
 def make_modes_keyboard():
@@ -278,6 +223,33 @@ def make_modes_keyboard():
     )
 
     return keyboard
+
+
+def make_consent_keyboard():
+    keyboard = types.InlineKeyboardMarkup(row_width=1)
+    keyboard.add(
+        types.InlineKeyboardButton(
+            "✅ Согласен",
+            callback_data="privacy_accept"
+        ),
+        types.InlineKeyboardButton(
+            "❌ Не согласен",
+            callback_data="privacy_decline"
+        )
+    )
+    return keyboard
+
+
+def has_ai_consent(chat_id):
+    return str(chat_id) in CONSENTED_USERS
+
+
+def request_ai_consent(chat_id):
+    bot.send_message(
+        chat_id,
+        PRIVACY_NOTICE,
+        reply_markup=make_consent_keyboard()
+    )
 
 
 def ask_openai_with_retry(messages):
@@ -298,23 +270,38 @@ def ask_openai_with_retry(messages):
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    add_subscriber(message.chat.id)
-
     current_mode = get_user_mode(message.chat.id)
     current_mode_name = MODE_NAMES.get(current_mode, "☀️ Нежный")
 
     bot.send_message(
         message.chat.id,
-        f"Бомжур ☀️\nЯ Солнечный Ген.\n\nТвой режим: {current_mode_name}\n\nТеперь ты подписан на офисную турбулентность 🥔",
+        f"Бомжур ☀️\nЯ Солнечный Ген.\n\nТвой режим: {current_mode_name}\n\nЯ не храню твою переписку и не подписываю тебя на рассылки.",
         reply_markup=make_modes_keyboard()
     )
+    request_ai_consent(message.chat.id)
 
 
 @bot.message_handler(commands=['help'])
 def help_command(message):
     bot.send_message(
         message.chat.id,
-        "Я умею:\n/modes — выбрать режим\n/potato — режим картошки\n/panic — если накрыло\n/task — разложить задачу\n/meme — офисный мем"
+        "Я умею:\n/modes — выбрать режим\n/potato — режим картошки\n/panic — если накрыло\n/task — разложить задачу\n/meme — офисный мем\n/privacy — как обрабатываются сообщения\n/revoke — отозвать согласие на AI"
+    )
+
+
+@bot.message_handler(commands=['privacy'])
+def privacy(message):
+    request_ai_consent(message.chat.id)
+
+
+@bot.message_handler(commands=['revoke'])
+def revoke_consent(message):
+    chat_id = str(message.chat.id)
+    CONSENTED_USERS.discard(chat_id)
+    USER_MODES.pop(chat_id, None)
+    bot.send_message(
+        message.chat.id,
+        "Согласие отозвано. Временный режим удалён из памяти. AI-ответы отключены до нового согласия через /privacy."
     )
 
 
@@ -327,6 +314,28 @@ def modes(message):
         message.chat.id,
         f"Текущий режим: {current_mode_name}\n\nВыбери режим:",
         reply_markup=make_modes_keyboard()
+    )
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("privacy_"))
+def privacy_callback(call):
+    chat_id = str(call.message.chat.id)
+
+    if call.data == "privacy_accept":
+        CONSENTED_USERS.add(chat_id)
+        bot.answer_callback_query(call.id, "Согласие принято")
+        bot.send_message(
+            call.message.chat.id,
+            "Готово. Согласие хранится только в памяти до перезапуска. Можно писать ☀️"
+        )
+        return
+
+    CONSENTED_USERS.discard(chat_id)
+    USER_MODES.pop(chat_id, None)
+    bot.answer_callback_query(call.id, "AI-обработка отключена")
+    bot.send_message(
+        call.message.chat.id,
+        "Понял. Текст в OpenAI не отправляю. Локальные команды вроде /meme продолжат работать."
     )
 
 
@@ -387,8 +396,37 @@ def meme(message):
     )
 
 
-@bot.message_handler(func=lambda message: True)
+@bot.message_handler(
+    content_types=[
+        'photo',
+        'voice',
+        'audio',
+        'video',
+        'document',
+        'sticker',
+        'animation',
+        'video_note',
+        'location',
+        'contact'
+    ]
+)
+def unsupported_content(message):
+    bot.send_message(
+        message.chat.id,
+        "Я пока работаю только с текстом. Опиши словами — так надёжнее и без лишней передачи файлов ☀️"
+    )
+
+
+@bot.message_handler(func=lambda message: True, content_types=['text'])
 def chat(message):
+    if not has_ai_consent(message.chat.id):
+        bot.send_message(
+            message.chat.id,
+            "Перед AI-ответом мне нужно твоё согласие на обработку текста."
+        )
+        request_ai_consent(message.chat.id)
+        return
+
     mode_key = get_user_mode(message.chat.id)
     mode_prompt = MODES.get(mode_key, MODES["gentle"])
 
