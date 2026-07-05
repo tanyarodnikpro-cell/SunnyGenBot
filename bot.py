@@ -14,7 +14,6 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Эти данные существуют только в оперативной памяти процесса.
 # После перезапуска они исчезают и никогда не записываются на диск.
-USER_MODES = {}
 CONSENTED_USERS = set()
 PENDING_TASK_USERS = set()
 
@@ -24,75 +23,20 @@ PRIVACY_NOTICE = """
 Ген не сохраняет на диск:
 — Telegram ID, имя или username;
 — историю переписки;
-— выбранный режим общения;
 — содержимое сообщений.
 
-Режим и факт согласия существуют только в оперативной памяти и исчезают после перезапуска.
+Согласие и временные технические состояния существуют только в оперативной памяти и исчезают после перезапуска.
 
 Чтобы получить AI-ответ, текст твоего сообщения передаётся сервису OpenAI. В передаче и обработке также участвуют Telegram и серверная инфраструктура. Не отправляй пароли, банковские данные, документы, медицинские сведения и рабочие секреты.
 
 Нажимая «Согласен», ты разрешаешь обработать и трансгранично передать текст сообщения исключительно для формирования ответа. Согласие можно отозвать командой /revoke.
 """.strip()
 
-
-MODES = {
-    "gentle": "☀️ Нежный режим: говори мягко, спокойно и заботливо.",
-    "mem": "🤡 Мемный режим: больше офисного абсурда и юмора.",
-    "post": "💀 Постироничный режим: суховатый юмор и духовное увольнение.",
-    "adhd": "🧠 ADHD-chaos режим: короткие шаги и минимум хаоса.",
-    "potato": "🥔 Картофельный режим: максимально бережная поддержка."
-}
-
-MODE_NAMES = {
-    "gentle": "☀️ Нежный",
-    "mem": "🤡 Мемный",
-    "post": "💀 Постироничный",
-    "adhd": "🧠 ADHD-chaos",
-    "potato": "🥔 Картофельный"
-}
-
-MODE_RESPONSES = {
-    "gentle": [
-        "☀️ Так. Без геройства сегодня. Просто живём день аккуратно.",
-        "☀️ Потихоньку, спокойно, без самосожжения.",
-        "☀️ Давай просто переживём этот день красиво."
-    ],
-    "mem": [
-        "🤡 Психика надела клоунский нос и пошла арбайтен.",
-        "🤡 Корпоративная турбулентность штатная.",
-        "🤡 Teams издал звук — давление упало."
-    ],
-    "post": [
-        "💀 Духовно уже на даче.",
-        "💀 Работаем без иллюзий.",
-        "💀 Психика вышла покурить и не вернулась.",
-        "💀 Сегодня арбайтен через внутреннее страдание.",
-        "💀 Внутри — пепел. Снаружи — созвон.",
-        "💀 Корпоративный апокалипсис идёт по расписанию.",
-        "💀 Не день, а лепнина из говна и палок.",
-        "💀 Состояние: тихо ору в Excel.",
-        "💀 Работаем на морально-волевых и кофеине.",
-        "💀 Внутренне уже написала заявление.",
-        "💀 Teams пиликнул — душа покинула тело.",
-        "💀 Мотивация найдена не была.",
-        "💀 Дедлайновая лава подошла к горлу.",
-        "💀 Иван-дурак на коне-дебиле въехал в рабочий день.",
-        "💀 Плавали, знаем, вся жопа в ракушках.",
-        "💀 Внутренний ресурс: две макаронины.",
-        "💀 Сегодня не живём, а технически существуем.",
-        "💀 Рабочее настроение: чай в ладошку и в дорожку."
-    ],
-    "adhd": [
-        "🧠 47 вкладок обнаружено.",
-        "🧠 Одну задачу. Одну. Не устраиваем фестиваль хаоса.",
-        "🧠 Мозг открыл TikTok внутри головы."
-    ],
-    "potato": [
-        "🥔 Режим картошки активирован.",
-        "🥔 Сегодня арбайтен без геройства.",
-        "🥔 Психика ушла полежать."
-    ]
-}
+POTATO_RESPONSES = [
+    "🥔 Режим картошки активирован. Сегодня без геройства.",
+    "🥔 Сегодня арбайтен бережно. Одно маленькое дело — уже достаточно.",
+    "🥔 Психика ушла полежать. Имеет право."
+]
 
 
 SYSTEM_PROMPT = """
@@ -199,30 +143,6 @@ TASK_PROMPT = """
 """.strip()
 
 
-def get_user_mode(chat_id):
-    chat_id = str(chat_id)
-    return USER_MODES.get(chat_id, "gentle")
-
-
-def set_user_mode(chat_id, mode_key):
-    chat_id = str(chat_id)
-    USER_MODES[chat_id] = mode_key
-
-
-def make_modes_keyboard():
-    keyboard = types.InlineKeyboardMarkup(row_width=1)
-
-    keyboard.add(
-        types.InlineKeyboardButton("☀️ Нежный", callback_data="mode_gentle"),
-        types.InlineKeyboardButton("🤡 Мемный", callback_data="mode_mem"),
-        types.InlineKeyboardButton("💀 Постироничный", callback_data="mode_post"),
-        types.InlineKeyboardButton("🧠 ADHD-chaos", callback_data="mode_adhd"),
-        types.InlineKeyboardButton("🥔 Картофельный", callback_data="mode_potato")
-    )
-
-    return keyboard
-
-
 def make_consent_keyboard():
     keyboard = types.InlineKeyboardMarkup(row_width=1)
     keyboard.add(
@@ -291,13 +211,9 @@ def ask_openai_with_retry(messages, max_tokens=260):
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    current_mode = get_user_mode(message.chat.id)
-    current_mode_name = MODE_NAMES.get(current_mode, "☀️ Нежный")
-
     bot.send_message(
         message.chat.id,
-        f"Бомжур ☀️\nЯ Солнечный Ген.\n\nТвой режим: {current_mode_name}\n\nЯ не храню твою переписку и не подписываю тебя на рассылки.",
-        reply_markup=make_modes_keyboard()
+        "Бомжур ☀️\nЯ Солнечный Ген.\n\nЯ не храню твою переписку и не подписываю тебя на рассылки. Команды и возможности покажу по /help."
     )
     request_ai_consent(message.chat.id)
 
@@ -306,7 +222,7 @@ def start(message):
 def help_command(message):
     bot.send_message(
         message.chat.id,
-        "Я умею:\n/modes — выбрать режим\n/potato — режим картошки\n/panic — если накрыло\n/task — подробно разложить следующую задачу\n/meme — офисный мем\n/privacy — как обрабатываются сообщения\n/revoke — отозвать согласие на AI"
+        "Я умею:\n/potato — бережно пережить день\n/panic — если накрыло\n/task — подробно разложить следующую задачу\n/meme — офисный мем\n/privacy — как обрабатываются сообщения\n/revoke — отозвать согласие на AI"
     )
 
 
@@ -319,23 +235,10 @@ def privacy(message):
 def revoke_consent(message):
     chat_id = str(message.chat.id)
     CONSENTED_USERS.discard(chat_id)
-    USER_MODES.pop(chat_id, None)
     PENDING_TASK_USERS.discard(chat_id)
     bot.send_message(
         message.chat.id,
-        "Согласие отозвано. Временный режим удалён из памяти. AI-ответы отключены до нового согласия через /privacy."
-    )
-
-
-@bot.message_handler(commands=['modes'])
-def modes(message):
-    current_mode = get_user_mode(message.chat.id)
-    current_mode_name = MODE_NAMES.get(current_mode, "☀️ Нежный")
-
-    bot.send_message(
-        message.chat.id,
-        f"Текущий режим: {current_mode_name}\n\nВыбери режим:",
-        reply_markup=make_modes_keyboard()
+        "Согласие отозвано. AI-ответы отключены до нового согласия через /privacy."
     )
 
 
@@ -353,12 +256,11 @@ def privacy_callback(call):
         return
 
     CONSENTED_USERS.discard(chat_id)
-    USER_MODES.pop(chat_id, None)
     PENDING_TASK_USERS.discard(chat_id)
     bot.answer_callback_query(call.id, "AI-обработка отключена")
     bot.send_message(
         call.message.chat.id,
-        "Понял. Текст в OpenAI не отправляю. Локальные команды вроде /meme продолжат работать."
+        "Понял. Текст в OpenAI не отправляю. Локальные команды вроде /meme и /panic продолжат работать."
     )
 
 
@@ -390,7 +292,6 @@ def panic_callback(call):
 
     if call.data == "panic_stay":
         PENDING_TASK_USERS.discard(chat_id)
-        set_user_mode(call.message.chat.id, "potato")
         bot.send_message(
             call.message.chat.id,
             "Я рядом. Сейчас ничего не чиним и не требуем от тебя красивого объяснения. Напиши хоть одно слово: «страшно», «злюсь», «устала» или своё. Дальше разберёмся без геройства 🥔"
@@ -405,36 +306,18 @@ def panic_callback(call):
     )
 
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith("mode_"))
-def mode_callback(call):
-    chat_id = str(call.message.chat.id)
-    mode_key = call.data.replace("mode_", "")
-    set_user_mode(call.message.chat.id, mode_key)
-    PENDING_TASK_USERS.discard(chat_id)
-
-    responses = MODE_RESPONSES.get(mode_key, ["☀️ Режим обновлён."])
-    random_response = random.choice(responses)
-
-    bot.answer_callback_query(call.id)
-    bot.send_message(call.message.chat.id, random_response)
-
-
 @bot.message_handler(commands=['potato'])
 def potato(message):
     PENDING_TASK_USERS.discard(str(message.chat.id))
-    set_user_mode(message.chat.id, "potato")
-    response = random.choice(MODE_RESPONSES["potato"])
-
     bot.send_message(
         message.chat.id,
-        response
+        random.choice(POTATO_RESPONSES)
     )
 
 
 @bot.message_handler(commands=['panic'])
 def panic(message):
     PENDING_TASK_USERS.discard(str(message.chat.id))
-    set_user_mode(message.chat.id, "potato")
     bot.send_message(
         message.chat.id,
         "Так. Я рядом. Сейчас не решаем всю жизнь и не спасаем офис.\n\n"
@@ -502,14 +385,12 @@ def chat(message):
 
     chat_id = str(message.chat.id)
     task_requested = chat_id in PENDING_TASK_USERS
-    mode_key = get_user_mode(message.chat.id)
-    mode_prompt = MODES.get(mode_key, MODES["gentle"])
 
     if task_requested:
         active_prompt = SYSTEM_PROMPT + "\n\n" + TASK_PROMPT
         max_tokens = 800
     else:
-        active_prompt = SYSTEM_PROMPT + "\n\nТекущий режим:\n" + mode_prompt
+        active_prompt = SYSTEM_PROMPT
         max_tokens = 260
 
     messages = [
