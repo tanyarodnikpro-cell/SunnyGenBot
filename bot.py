@@ -238,6 +238,29 @@ def make_consent_keyboard():
     return keyboard
 
 
+def make_panic_keyboard():
+    keyboard = types.InlineKeyboardMarkup(row_width=1)
+    keyboard.add(
+        types.InlineKeyboardButton(
+            "🫁 Накрыло тревогой",
+            callback_data="panic_grounding"
+        ),
+        types.InlineKeyboardButton(
+            "🔥 Горит работа",
+            callback_data="panic_work"
+        ),
+        types.InlineKeyboardButton(
+            "🥔 Просто побудь рядом",
+            callback_data="panic_stay"
+        ),
+        types.InlineKeyboardButton(
+            "🆘 Нужна срочная помощь",
+            callback_data="panic_urgent"
+        )
+    )
+    return keyboard
+
+
 def has_ai_consent(chat_id):
     return str(chat_id) in CONSENTED_USERS
 
@@ -339,6 +362,49 @@ def privacy_callback(call):
     )
 
 
+@bot.callback_query_handler(func=lambda call: call.data.startswith("panic_"))
+def panic_callback(call):
+    chat_id = str(call.message.chat.id)
+    bot.answer_callback_query(call.id)
+
+    if call.data == "panic_grounding":
+        bot.send_message(
+            call.message.chat.id,
+            "Так, возвращаем мозг из дедлайновой лавы в комнату. Без спешки назови:\n\n"
+            "5 вещей, которые видишь;\n"
+            "4 ощущения в теле — например, стопы в носках или спину на стуле;\n"
+            "3 звука, которые слышишь;\n"
+            "2 запаха;\n"
+            "1 вкус.\n\n"
+            "Если тебе комфортно, сделай три спокойных выдоха чуть длиннее вдоха. Не надо выполнять идеально — мы не сдаём экзамен по существованию."
+        )
+        return
+
+    if call.data == "panic_work":
+        PENDING_TASK_USERS.add(chat_id)
+        bot.send_message(
+            call.message.chat.id,
+            "Хорошо. Не спасаем весь офис — тушим один стул. Напиши одним сообщением, что именно горит. Я разложу это на шаги и выберу первый микрошажочек."
+        )
+        return
+
+    if call.data == "panic_stay":
+        PENDING_TASK_USERS.discard(chat_id)
+        set_user_mode(call.message.chat.id, "potato")
+        bot.send_message(
+            call.message.chat.id,
+            "Я рядом. Сейчас ничего не чиним и не требуем от тебя красивого объяснения. Напиши хоть одно слово: «страшно», «злюсь», «устала» или своё. Дальше разберёмся без геройства 🥔"
+        )
+        return
+
+    PENDING_TASK_USERS.discard(chat_id)
+    bot.send_message(
+        call.message.chat.id,
+        "Если есть реальная угроза жизни или здоровью — не оставайся только с ботом. Позови человека рядом и позвони в экстренную службу.\n\n"
+        "В Казахстане: 112 — единая экстренная служба, 103 — скорая помощь. В другой стране используй местный экстренный номер. Сообщи, что случилось и где ты находишься."
+    )
+
+
 @bot.callback_query_handler(func=lambda call: call.data.startswith("mode_"))
 def mode_callback(call):
     chat_id = str(call.message.chat.id)
@@ -371,7 +437,10 @@ def panic(message):
     set_user_mode(message.chat.id, "potato")
     bot.send_message(
         message.chat.id,
-        "Так. Дышим ☀️\nКартофельный режим включён.\nСейчас не спасаем весь офис. Назови одну микрозадачу. Одну."
+        "Так. Я рядом. Сейчас не решаем всю жизнь и не спасаем офис.\n\n"
+        "Упрись стопами в пол или кровать. Найди глазами три предмета вокруг. Если комфортно — спокойно выдохни. Можно сделать глоток воды.\n\n"
+        "Теперь выбери, что ближе:",
+        reply_markup=make_panic_keyboard()
     )
 
 
