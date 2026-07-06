@@ -11,6 +11,7 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
 bot = telebot.TeleBot(TOKEN)
 client = OpenAI(api_key=OPENAI_API_KEY)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Эти данные существуют только в оперативной памяти процесса.
 # После перезапуска они исчезают и никогда не записываются на диск.
@@ -36,6 +37,81 @@ POTATO_RESPONSES = [
     "🥔 Режим картошки активирован. Сегодня без геройства.",
     "🥔 Сегодня арбайтен бережно. Одно маленькое дело — уже достаточно.",
     "🥔 Психика ушла полежать. Имеет право."
+]
+
+MEMES = [
+    {
+        "path": os.path.join("memes", "dogs", "dog_01.jpg"),
+        "caption": "Когда на созвоне спросили: «Ну что там по срокам?»\nА ты там по выживанию."
+    },
+    {
+        "path": os.path.join("memes", "dogs", "dog_02.jpg"),
+        "caption": "Понедельник. 09:07.\nЯ уже качественно устал."
+    },
+    {
+        "path": os.path.join("memes", "dogs", "dog_03.jpg"),
+        "caption": "Когда коллега пишет: «Есть маленькая правочка».\nМаленькая, сука, правочка."
+    },
+    {
+        "path": os.path.join("memes", "dogs", "dog_04.jpg"),
+        "caption": "Алло, техподдержка?\nЯ нажал «ответить всем» и теперь хочу исчезнуть."
+    },
+    {
+        "path": os.path.join("memes", "dogs", "dog_05.jpg"),
+        "caption": "Когда сказали: «Давайте без лишних созвонов»\nи назначили созвон обсудить созвоны."
+    },
+    {
+        "path": os.path.join("memes", "dogs", "dog_06.jpg"),
+        "caption": "Задачу сделал.\nТЗ не читал. Риски люблю."
+    },
+    {
+        "path": os.path.join("memes", "dogs", "dog_07.jpg"),
+        "caption": "Я на испытательном сроке:\nделаю вид, что понимаю корпоративную культуру."
+    },
+    {
+        "path": os.path.join("memes", "dogs", "dog_08.jpg"),
+        "caption": "Открыл одну задачу.\nОна открыла ещё семнадцать."
+    },
+    {
+        "path": os.path.join("memes", "dogs", "dog_09.jpg"),
+        "caption": "ЭТО МОГЛО БЫТЬ ПИСЬМОМ!\nСпасибо, я закончил."
+    },
+    {
+        "path": os.path.join("memes", "cats", "cat_01.jpg"),
+        "caption": "Когда дедлайн был вчера,\nа согласование пришло сегодня."
+    },
+    {
+        "path": os.path.join("memes", "cats", "cat_02.jpg"),
+        "caption": "Я посмотрел ваш отчёт.\nЭто говно надо переписать."
+    },
+    {
+        "path": os.path.join("memes", "cats", "cat_03.jpg"),
+        "caption": "Я: спокойно проверю почту.\nПочта: СРОЧНО!!!"
+    },
+    {
+        "path": os.path.join("memes", "cats", "cat_04.jpg"),
+        "caption": "Когда случайно включила камеру\nдо того, как включила лицо."
+    },
+    {
+        "path": os.path.join("memes", "cats", "cat_05.jpg"),
+        "caption": "Сегодня я отвечаю за стратегию.\nСтратегия: не отсвечивать."
+    },
+    {
+        "path": os.path.join("memes", "cats", "cat_06.jpg"),
+        "caption": "Коллеги, мы всё уронили.\nНо есть нюанс: оно и так еле стояло."
+    },
+    {
+        "path": os.path.join("memes", "cats", "cat_07.jpg"),
+        "caption": "Третья чашка кофе.\nТеперь я тревожусь продуктивно."
+    },
+    {
+        "path": os.path.join("memes", "cats", "cat_08.jpg"),
+        "caption": "Новый опенспейс.\nЛоток — в конце коридора, выгорание — по расписанию."
+    },
+    {
+        "path": os.path.join("memes", "cats", "cat_09.jpg"),
+        "caption": "Я изучил архитектуру.\nПепелац держится на скотче и вере."
+    }
 ]
 
 
@@ -338,18 +414,22 @@ def task(message):
 
 @bot.message_handler(commands=['meme'])
 def meme(message):
-    memes = [
-        "Я: сейчас быстренько сделаю задачу.\nЗадача: добро пожаловать в дедлайновую лаву ☕️",
-        "Когда открыл Битрикс и Битрикс открыл тебя.",
-        "Мой карьерный план: не сдохнуть.",
-        "Я не прокрастинирую. Я жду пока паника включит турборежим.",
-        "Сегодня мой максимум — не расплакаться в Excel."
-    ]
+    selected_meme = random.choice(MEMES)
+    photo_path = os.path.join(BASE_DIR, selected_meme["path"])
 
-    bot.send_message(
-        message.chat.id,
-        random.choice(memes)
-    )
+    try:
+        with open(photo_path, "rb") as photo:
+            bot.send_photo(
+                message.chat.id,
+                photo,
+                caption=selected_meme["caption"]
+            )
+    except OSError as e:
+        print(f"Не удалось открыть мем {photo_path}: {e}")
+        bot.send_message(
+            message.chat.id,
+            selected_meme["caption"]
+        )
 
 
 @bot.message_handler(
